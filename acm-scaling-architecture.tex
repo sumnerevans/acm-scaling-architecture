@@ -237,14 +237,6 @@
 
 \section{What is software architecture?}
 
-\begin{frame}{What do you think software architecture is?}
-    \begin{itemize}[<+->]
-        \item What questions do software architects ask?
-        \item What concerns do software architects have to take into account?
-        \item What tradeoffs do software architects have to consider?
-    \end{itemize}
-\end{frame}
-
 \begin{frame}{Software architecture is about component interactions}
     \centerline{\includegraphics[width=0.7\textwidth]{images/architectural-blueprint}}
 
@@ -253,22 +245,63 @@
     interactions of components in the software system.
 \end{frame}
 
-\begin{frame}{Examples}
+\begin{frame}{``The stack''}
+    No, not the one you learn in Data Structures.
+    \pause
+
+    In software architecture, the stack is the set of tools, services, and
+    languages used for the various components of the system.
+    \pause
+
+    The closer a system is to a user, the further \textit{up} the stack it is.
+
+    The further up in the stack you are, the closer to the frontend you are.
+\end{frame}
+
+\begin{frame}{What do you think software architecture is?}
     \begin{itemize}[<+->]
-        \item 
+        \item What questions do software architects ask?
+        \item What concerns do software architects have to take into account?
+        \item What tradeoffs do software architects have to consider?
     \end{itemize}
 \end{frame}
 
-\begin{frame}{``The stack''}
-    No, not the one you learn in Data Structures.
+\begin{frame}{Examples of questions}
+    \begin{itemize}[<+->]
+        \item How and where is the code going to be deployed? (CI/CD,
+            Kubernetes, regions, etc.)
+        \item Which systems depend on each other? (DBs, orchestrator process,
+            etc.)
+        \item What dependencies are you using in each component? (security,
+            corporate policies, code quality, etc.)
+        \item What languages are you going to use? (different for
+            front/backend)?
+        \item What components are we going to write ourselves, and which are we
+            going to rely on open source or proprietary solutions for?
+        \item How will the various components communicate with one another
+            (GRPC, Rest, GraphQL, etc.)
+        \item How many resources should you allocate to each system? (memory,
+            disk, CPU, etc.)
+    \end{itemize}
+\end{frame}
 
-    \pause
+\begin{frame}{Some more common architectural patterns and tools}
+    \textbf{Patterns}
+    \begin{itemize}[<+->]
+        \item \textbf{Microservices:} split your service into logical smaller
+            services and use IPC between services
+        \item \textbf{Load balancing:} split traffic across multiple services
+        \item \textbf{Sharding:} split data across independent services
+    \end{itemize}
+    \pause[\thebeamerpauses]
 
-    In software architecture, when we refer to the stack we are referring to the
-    tools, services, and languages used for the various components of the
-    system.
-
-    The closer a system is to a user, the further \textit{up} the stack it is.
+    \textbf{Tools}
+    \begin{itemize}[<+->]
+        \item \textbf{Docker:} allows you to bundle runtime dependencies with
+            your executable in a \textit{container}
+        \item \textbf{Kubernetes:} allows you to orchestrate containers and
+            describe things like dependencies between them
+    \end{itemize}
 \end{frame}
 
 \section{A bit about Beeper's current architecture}
@@ -276,34 +309,65 @@
 \begin{frame}{A diagram}
     \centerline{\includegraphics[width=1.15\textwidth]{images/current-architecture}}
 
-    Each user gets their own bridge for each network they connect.
+    Let's look at the makeup of the current architecture.
 \end{frame}
 
-\begin{frame}{Advantages of our architecture}
+\begin{frame}{Existing base}
+    We are using existing open source projects for a lot of our architecture.
+    \pause
+
+    \textbf{Synapse} is an existing Matrix homeserver and we use the open source
+    \textbf{PostgreSQL} database.
+
+    All of the bridges are also open source.
+\end{frame}
+
+\begin{frame}{Deployment}
+    We are deploying on \textbf{AWS} and \textbf{Hetzner}. We use
+    \textbf{Kubernetes} to manage all of the services.
+    \pause
+
+    Synapse is where all of the messages (events) are stored, so it has to be
+    fast and reliable. It runs in AWS.
+    \pause
+
+    We run one bridge per user for every external network they connect to. This
+    is for security (process isolation) and flexibility.
     \begin{itemize}[<+->]
-        \item ASMUX allows us to dynamically change what bridges are running
-        \item Each users' bridge is \textbf{isolated}
         \item We can deploy \textbf{different bridge versions} to different sets
             of users
         \item Bridges can be stopped and started individually
-        \item Double puppeting
     \end{itemize}
+\end{frame}
+
+\begin{frame}{Custom software}
+    Bridges normally connect directly to Synapse. However, Synapse has no way to
+    hotswap bridges.
+
+    We wrote ASMUX as an intermediate service to allow for hotswapping of
+    bridges.
+\end{frame}
+
+\begin{frame}{Back to the diagram}
+    \centerline{\includegraphics[width=1.15\textwidth]{images/current-architecture}}
+
+    There are some disadvantages to this architecture\ldots
 \end{frame}
 
 \begin{frame}{Disadvantages of our architecture}
     \begin{itemize}[<+->]
         \item We have to run a \textbf{lot} of bridges
-        \item Synapse is not designed for a dynamic numbers of bridges
-        \item If two users join the same chat on an external network, we end up
-            with two rooms with the same data
         \item We run Synapse on AWS which is relatively expensive
         \item Synapse becomes a bottleneck for all traffic
     \end{itemize}
-\end{frame}
+    \pause[\thebeamerpauses]
 
-\begin{frame}{Back to the diagram}
-    \centerline{\includegraphics[width=1.15\textwidth]{images/current-architecture}}
-    The core software in this architecture is Synapse.
+    We've reached the extent of how far we can scale with our current
+    architecture.
+
+    \begin{block}{Don't scale until you have to}
+        Don't architect your system for scale until you need to scale.
+    \end{block}
 \end{frame}
 
 \begin{frame}{Stats}
@@ -320,35 +384,34 @@
     \textbf{\large On average, each user and their puppets collectively account
         for 100k events!}
     \vspace{0.4cm}
-    \pause
-
-    None of that traffic is federated, but it has to go to Synapse which is
-    designed with federation front-and-center!
-\end{frame}
-
-\begin{frame}{A few more notes}
-    \begin{itemize}[<+->]
-        \item \textbf{Synapse is aggressively federated}
-
-            Synapse has no special handling of federated vs unfederated rooms.
-
-        \item \textbf{Synapse does not handle message floods well}
-
-            Synapse falls over when users bridge some large Telegram chats and
-            Discord servers.
-
-        \item \textbf{Deleting rooms from Synapse is hard}
-
-            We end up with lots of \textit{dead} rooms when users delete their
-            bridges and never turn it back on (or need a hard bridge reset).
-    \end{itemize}
 \end{frame}
 
 \begingroup
 \def\insertframenumber{\relax}
 \begin{frame}[standout]
-    \Large
-    Solution: shard our homeserver based on bridged vs. unbridged traffic
+    \textbf{\LARGE We need to find a way to scale!}
+\end{frame}
+\endgroup
+
+\begin{frame}{Observation}
+    \begin{center}
+        \LARGE Bridged rooms are unique
+    \end{center}
+    \pause
+
+    Most (chat) rooms in Matrix are \textit{federated} which means that users on
+    different servers can participate.
+    \pause
+
+    Bridged rooms are only for a \textbf{single user} on Beeper.com.
+\end{frame}
+
+\begingroup
+\def\insertframenumber{\relax}
+\begin{frame}[standout]
+    \textbf{\LARGE Finding scalability}
+
+    Shard and load-balance our homeserver based on bridged vs. unbridged traffic
 \end{frame}
 \endgroup
 
@@ -363,8 +426,8 @@
 \begin{frame}{Splitting the homeserver, keeping the protocol}
     \Large
     \centering
-    This new architecture allows us to handle Matrix-native federated traffic
-    separately from our high-throughput unfederated bridge traffic.
+    This new architecture allows us to handle non-bridge traffic separately from
+    our bridge traffic.
     \pause
 
     \textbf{All while maintaining API compatibility with clients, bridges, and
@@ -377,14 +440,12 @@
     Let's talk about the differences from the old architecture\ldots
 \end{frame}
 
-\begin{frame}{Hungryserv: why is it hungry?}
-    \Large
-    Because it's unfed\pause{erated!}
-\end{frame}
-
 \begin{frame}{Hungryserv}
     We run a \textbf{Hungryserv} instance for every user to handle that user's
     bridge traffic.
+    \pause
+    We can run infinite\footnote[frame]{theoretically} Hungryserv instances for
+    our users.
     \pause
 
     \begin{itemize}[<+->]
@@ -396,45 +457,47 @@
             federate with other Matrix homeservers.
     \end{itemize}
     \pause[\thebeamerpauses]
-
-    We are also currently looking into ways of using \textbf{SQLite} in
-    production using Litestream.
 \end{frame}
 
-\begin{frame}{Hungryserv: aggressively unfederated}
-    Each bridge belongs to a single user, so federation is unnecessary. \\
-    \pause
-
-    \begin{quote}
-        When your DAG is a linked-list, don't store it as a DAG.
-    \end{quote}
-    \pause
-
-    Being unfederated means that:
-    \begin{itemize}
-        \item we can avoid implementing the state resolution algorithm,
-        \item event storage requires less metadata,
-        \item deletions can be optimized, and
-        \item infinite backfill becomes an simple batch SQL operation.
-    \end{itemize}
+\begin{frame}{Hungryserv: why is it hungry?}
+    \Large
+    Because it's unfed\pause{erated!}
 \end{frame}
 
-\begin{frame}{Hungryserv: goals, and non-goals}
-    \textbf{Goals}
-    \begin{itemize}
-        \item Be fast
-        \item Be compatible with Beeper clients (and mostly compatible with
-            Element clients)
-        \item Be API-compatible with the Appservice API for bridges
-    \end{itemize}
-    \pause
+% \begin{frame}{Hungryserv: aggressively unfederated}
+%     Each bridge belongs to a single user, so federation is unnecessary. \\
+%     \pause
 
-    \textbf{Non-goals}
-    \begin{itemize}
-        \item Be federated
-        \item Be fully spec compliant
-    \end{itemize}
-\end{frame}
+%     \begin{quote}
+%         When your DAG is a linked-list, don't store it as a DAG.
+%     \end{quote}
+%     \pause
+
+%     Being unfederated means that:
+%     \begin{itemize}
+%         \item we can avoid implementing the state resolution algorithm,
+%         \item event storage requires less metadata,
+%         \item deletions can be optimized, and
+%         \item infinite backfill becomes an simple batch SQL operation.
+%     \end{itemize}
+% \end{frame}
+
+% \begin{frame}{Hungryserv: goals, and non-goals}
+%     \textbf{Goals}
+%     \begin{itemize}
+%         \item Be fast
+%         \item Be compatible with Beeper clients (and mostly compatible with
+%             Element clients)
+%         \item Be API-compatible with the Appservice API for bridges
+%     \end{itemize}
+%     \pause
+
+%     \textbf{Non-goals}
+%     \begin{itemize}
+%         \item Be federated
+%         \item Be fully spec compliant
+%     \end{itemize}
+% \end{frame}
 
 \begin{frame}{A sharded future}
     \centerline{\includegraphics[width=1.15\textwidth]{images/new-architecture}}
@@ -456,20 +519,20 @@
     Let's talk about the differences from the old architecture\ldots
 \end{frame}
 
-\begin{frame}{No more ASMUX}
-    Hungryserv natively supports dynamic registration of app services, and knows
-    how to route requests to the correct bridge.
-    \pause
+% \begin{frame}{No more ASMUX}
+%     Hungryserv natively supports dynamic registration of app services, and knows
+%     how to route requests to the correct bridge.
+%     \pause
 
-    \textbf{We no longer have to rely on the single transactions firehose from
-    Synapse.}
-\end{frame}
+%     \textbf{We no longer have to rely on the single transactions firehose from
+%     Synapse.}
+% \end{frame}
 
-\begin{frame}{A sharded future}
-    \centerline{\includegraphics[width=1.15\textwidth]{images/new-architecture}}
+% \begin{frame}{A sharded future}
+%     \centerline{\includegraphics[width=1.15\textwidth]{images/new-architecture}}
 
-    Let's talk about the differences from the old architecture\ldots
-\end{frame}
+%     Let's talk about the differences from the old architecture\ldots
+% \end{frame}
 
 \begin{frame}{A multi-cloud future?}
     The resources for each user can be moved closer to them using a multi-cloud,
