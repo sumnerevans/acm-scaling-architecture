@@ -2,7 +2,7 @@
   description = "A very basic flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -11,15 +11,16 @@
       (system:
         let
           pkgs = import nixpkgs { system = system; };
+          texlive = pkgs.texlive.combined.scheme-full;
         in
         {
-          devShells = {
-            default = pkgs.mkShell {
-              packages = with pkgs; [
-                gnumake
-                texlive.combined.scheme-full
-              ];
-            };
+          devShell = pkgs.mkShell {
+            name = "texlive";
+            buildInputs = with pkgs; [
+              gnumake
+              texlive
+              python39Packages.pygments
+            ];
           };
         }
       ));
